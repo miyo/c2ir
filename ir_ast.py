@@ -32,6 +32,11 @@ class Board:
             if name == v.original:
                 return v
         return None
+
+    def new_slot(self):
+        slot = Slot(len(self.slots))
+        self.slots.append(slot)
+        return slot
     
 class Variable:
 
@@ -84,6 +89,17 @@ class Slot:
         str += ")"
         return str
 
+    def is_branch(self):
+        for item in self.items:
+            if item.is_branch():
+                return True
+        return False
+
+    def append_item(self, item):
+        self.items.append(item)
+        if item.is_branch() == False:
+            item.next_ids = [self.id+1]
+    
 class SlotItem:
     __slots__ = ('op', 'next_ids')
     def __init__(self, op, next_ids):
@@ -102,6 +118,9 @@ class SlotItem:
             sep = " "
         str += ")"
         return str
+
+    def is_branch(self):
+        return False
 
 class AssignSlotItem(SlotItem):
     __slots__ = ('lhs', 'rhs')
@@ -123,7 +142,10 @@ class ReturnSlotItem(SlotItem):
     def to_sexp(self):
         str = "(RETURN {} {})".format(self.v.name, self.next_ids_str())
         return str
-        
+    
+    def is_branch(self):
+        return True
+
 class BinaryOpSlotItem(SlotItem):
     __slots__ = ('binary_op', 'next_ids', 'v0', 'v1', 'ret')
     def __init__(self, binary_op, next_ids, v0, v1, ret):
@@ -136,3 +158,30 @@ class BinaryOpSlotItem(SlotItem):
     def to_sexp(self):
         str = "({} {} ({} {} {}) {})".format(self.op, self.ret.name, self.binary_op, self.v0.name, self.v1.name, self.next_ids_str())
         return str
+
+class JTSlotItem(SlotItem):
+    
+    __slots__ = ('cond')
+    def __init__(self, cond):
+        super().__init__("JT", [])
+        self.cond = cond
+
+    def to_sexp(self):
+        str = "(JT {} {})".format(self.cond.name, self.next_ids_str())
+        return str
+    
+    def is_branch(self):
+        return True
+
+class JPSlotItem(SlotItem):
+    
+    __slots__ = ('next_id')
+    def __init__(self, next_id):
+        super().__init__("JP", [next_id])
+
+    def to_sexp(self):
+        str = "(JP {})".format(self.next_ids_str())
+        return str
+    
+    def is_branch(self):
+        return True

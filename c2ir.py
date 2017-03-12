@@ -62,94 +62,128 @@ def parse_funcdef(module, func):
         v = ir_ast.Variable(ir_name, conv_type(param_decl.type), method_param=True, method=method_name, original=original_name)
         board.variables.append(v)
 
-    slot_id = len(board.slots)
-    slot = ir_ast.Slot(slot_id)
-    slot.items.append(ir_ast.SlotItem("METHOD_EXIT", [slot_id+1]))
-    board.slots.append(slot)
+    slot = board.new_slot()
+    slot.append_item(ir_ast.SlotItem("METHOD_EXIT", [slot.id+1]))
     
-    slot_id = len(board.slots)
-    slot = ir_ast.Slot(slot_id)
-    slot.items.append(ir_ast.SlotItem("METHOD_ENTRY", [slot_id+1]))
-    board.slots.append(slot)
+    slot = board.new_slot()
+    slot.append_item(ir_ast.SlotItem("METHOD_ENTRY", [slot.id+1]))
 
     for item in body.block_items:
         parse_stmt(board, item)
 
-    slot_id = len(board.slots)
-    slot = ir_ast.Slot(slot_id)
-    slot.items.append(ir_ast.SlotItem("JP", [0]))
-    board.slots.append(slot)
+    slot = board.new_slot()
+    slot.append_item(ir_ast.JPSlotItem(0))
     
     return board
 
 def parse_stmt(board, item):
+    slot = None
     if isinstance(item, c_ast.Return):
-        parse_return(board, item)
+        slot = parse_return(board, item)
     elif isinstance(item, c_ast.If):
-        parse_if(board, item)
+        slot = parse_if(board, item)
     elif isinstance(item, c_ast.For):
-        parse_for(board, item)
+        slot = parse_for(board, item)
     elif isinstance(item, c_ast.Compound):
-        parse_compound(board, item)
+        slot = parse_compound(board, item)
     elif isinstance(item, c_ast.Decl):
-        parse_decl(board, item)
+        slot = parse_decl(board, item)
     elif isinstance(item, c_ast.Switch):
-        parse_switch(board, item)
+        slot = parse_switch(board, item)
     elif isinstance(item, c_ast.Case):
-        parse_case(board, item)
+        slot = parse_case(board, item)
     elif isinstance(item, c_ast.Default):
-        parse_default(board, item)
+        slot = parse_default(board, item)
     elif isinstance(item, c_ast.Assignment):
-        parse_assignement(board, item)
+        slot = parse_assignement(board, item)
     elif isinstance(item, c_ast.Break):
-        parse_break(board, item)
+        slot = parse_break(board, item)
     elif isinstance(item, c_ast.UnaryOp):
-        parse_expr(board, item)
+        v, slot = parse_unaryop(board, item)
     else:
         print("Not supported stmt yet", item)
+    return slot
 
 def parse_assignement(board, stmt):
     rhs = parse_expr(board, stmt.rvalue)
     lhs = parse_expr(board, stmt.lvalue)
-    slot_id = len(board.slots)
-    slot = ir_ast.Slot(slot_id)
-    slot.items.append(ir_ast.AssignSlotItem(lhs, rhs))
-    board.slots.append(slot)
+    slot = board.new_slot()
+    slot.append_item(ir_ast.AssignSlotItem(lhs, rhs))
+    return slot
 
 def parse_break(board, stmt):
     pass
     
 def parse_return(board, stmt):
     expr = parse_expr(board, stmt.expr)
-    
-    slot_id = len(board.slots)
-    slot = ir_ast.Slot(slot_id)
-    slot.items.append(ir_ast.ReturnSlotItem(expr))
-    board.slots.append(slot)
+    slot = board.new_slot()
+    slot.append_item(ir_ast.ReturnSlotItem(expr))
+    return slot
 
 def parse_if(board, stmt):
     cond = parse_expr(board, stmt.cond)
-    parse_stmt(board, stmt.iftrue)
-    parse_stmt(board, stmt.iftrue)
+    
+    slot = board.new_slot()
+    jt = ir_ast.JTSlotItem(cond)
+    slot.append_item(jt)
+    
+    then_id = slot.id+1
+    then_slot = parse_stmt(board, stmt.iftrue)
+    else_id = then_slot.id+1
+    else_slot = parse_stmt(board, stmt.iffalse)
+    
+    jt.next_ids = [then_id, else_id]
+    
+    slot = board.new_slot() # join slot
+    slot.append_item(ir_ast.JPSlotItem(slot.id+1))
+
+    if then_slot.is_branch() == False:
+        then_slot.next_ids = [slot.id]
+    if else_slot.is_branch() == False:
+        else_slot.next_ids = [slot.id]
+    
+    return slot
 
 def parse_for(board, stmt):
-    init = parse_stmt(board, stmt.init)
+    init_slot = parse_stmt(board, stmt.init)
+    
+    cond_entry = len(board.slots)
     cond = parse_expr(board, stmt.cond)
-    update = parse_stmt(board, stmt.next)
-    body = parse_stmt(board, stmt.stmt)
+    cond_slot = board.new_slot()
+    jt = ir_ast.JTSlotItem(cond)
+    cond_slot.append_item(jt)
+    
+    body_slot = parse_stmt(board, stmt.stmt)
+    update_slot = parse_stmt(board, stmt.next)
+    
+    slot = board.new_slot()
+    slot.append_item(ir_ast.JPSlotItem(slot.id+1))
+    jt.next_ids = [body_slot.id, slot.id]
+
+    if update_slot.is_branch() == False:
+        for item in update_slot.items:
+            item.next_ids = [cond_entry]
+    
+    return slot
     
 def parse_compound(board, stmt):
+    slot = None
     for s in stmt.block_items:
-        parse_stmt(board, s)
+        slot = parse_stmt(board, s)
+    return slot
         
 def parse_decl(board, stmt):
     original_name = stmt.name
     ir_name = original_name + "_" + board.uniq_id()
     v = ir_ast.Variable(ir_name, conv_type(stmt.type), method=board.name, original=original_name)
+    slot = None
     if stmt.init is not None:
         # an assignment step to initialize is required
         expr = parse_expr(board, stmt.init)
+        slot = board.new_slot() # setup slot
+        slot.append_item(ir_ast.AssignSlotItem(v, expr))
     board.variables.append(v)
+    return slot
     
 def parse_switch(board, stmt):
     cond = parse_expr(board, stmt.cond)
@@ -173,7 +207,8 @@ def parse_expr(board, expr):
     if isinstance(expr, c_ast.BinaryOp):
         return parse_binaryop(board, expr)
     elif isinstance(expr, c_ast.UnaryOp):
-        return parse_unaryop(board, expr)
+        expr, slot = parse_unaryop(board, expr)
+        return expr
     elif isinstance(expr, c_ast.ID):
         return parse_id(board, expr)
     elif isinstance(expr, c_ast.Constant):
@@ -188,10 +223,12 @@ def parse_binaryop(board, expr):
     lhs = parse_expr(board, expr.left)
     v = ir_ast.Variable("binary_op_{}".format(board.uniq_id()), get_kind(lhs, rhs), method=board.name)
     board.variables.append(v)
-    slot = ir_ast.Slot(len(board.slots))
-    board.slots.append(slot)
-    item = ir_ast.BinaryOpSlotItem(conv_op(op, v.kind), [len(board.slots)], lhs, rhs, v)
-    slot.items.append(item)
+    slot = board.new_slot()
+    ir_op = conv_op(op, v.kind)
+    item = ir_ast.BinaryOpSlotItem(ir_op, [len(board.slots)], lhs, rhs, v)
+    if is_boolean_op(ir_op):
+        v.kind = "BOOLEAN"
+    slot.append_item(item)
     return v
 
 def parse_unaryop(board, expr):
@@ -204,14 +241,14 @@ def parse_unaryop(board, expr):
         ir_op = "SUB"
     else:
         print("not supported unary operation yet", op)
+        
     kind = "INT"
     c = ir_ast.Constant("constant_{}".format(board.uniq_id()), kind, 1)
     board.variables.append(c)
-    slot = ir_ast.Slot(len(board.slots))
-    board.slots.append(slot)
+    slot = board.new_slot()
     item = ir_ast.BinaryOpSlotItem(ir_op, [len(board.slots)], v, c, v)
-    slot.items.append(item)
-    return v
+    slot.append_item(item)
+    return v,slot
 
 def parse_id(board, expr):
     return board.search_variable(expr.name)
@@ -224,6 +261,14 @@ def parse_constant(board, expr):
     c = ir_ast.Constant("constant_{}".format(board.uniq_id()), kind, expr.value)
     board.variables.append(c)
     return c
+
+def is_boolean_op(op):
+    if op == "LT":
+        return True
+    elif op == "COMPEQ":
+        return True
+    else:
+        return False
 
 def conv_op(op, kind):
     if op == "+":
