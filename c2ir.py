@@ -16,8 +16,10 @@ def parse(src_name, module):
     for ext in ast.ext:
         if isinstance(ext, c_ast.FuncDef):
             module.boards.append(parse_funcdef(module, ext))
+        elif isinstance(ext, c_ast.Decl):
+            parse_global_decl(module, ext)
         else:
-            print("Unknown ext: %s", decl)
+            print("Unknown ext: %s", ext)
 
     return module
 
@@ -25,6 +27,10 @@ def generate(dest_name, module):
     dest = open(dest_name, "w")
     module_name, _ = os.path.splitext(os.path.basename(dest_name))
     dest.write("(MODULE {}\n".format(module_name))
+    dest.write("  (VARIABLES\n")
+    for v in module.variables:
+        dest.write("    {}\n".format(v.to_sexp()))
+    dest.write("  )\n")
 
     for board in module.boards:
         dest.write(" (BOARD {} {} \n".format(board.kind, board.name))
@@ -45,10 +51,33 @@ def generate(dest_name, module):
 
 def conv_type(t):
     names = t.type.names
-    if((len(names) == 1) and (names[0] == "int")):
+    if((len(names) == 1) and (names[0] == "void")):
+        return "VOID"
+    elif((len(names) == 1) and (names[0] == "int")):
         return "INT"
+    elif((len(names) == 1) and (names[0] == "char")):
+        return "BYTE"
+    elif((len(names) == 1) and (names[0] == "short")):
+        return "SHORT"
+    elif((len(names) == 1) and (names[0] == "long")):
+        return "LONG"
+    elif((len(names) == 1) and (names[0] == "float")):
+        return "FLOAT"
+    elif((len(names) == 1) and (names[0] == "double")):
+        return "DOUBLE"
     else:
         return "UNKNOWN"
+
+def parse_global_decl(module, stmt):
+    original_name = stmt.name
+    ir_name = original_name + "_" + module.uniq_id()
+    v = ir_ast.Variable(ir_name, conv_type(stmt.type), method="null", original=original_name, public=True, member=True)
+    slot = None
+    if stmt.init is not None:
+        # an assignment step to initialize is required
+        pass
+    module.variables.append(v)
+    return slot
 
 def parse_funcdef(module, func):
     decl = func.decl
@@ -100,6 +129,9 @@ def parse_stmt(board, item):
         slot = parse_break(board, item)
     elif isinstance(item, c_ast.UnaryOp):
         v, slot = parse_unaryop(board, item)
+    elif isinstance(item, c_ast.EmptyStatement):
+        slot = board.new_slot() # join slot
+        slot.append_item(ir_ast.JPSlotItem(slot.id+1))
     else:
         print("Not supported stmt yet", item)
     return slot
@@ -256,6 +288,16 @@ def parse_id(board, expr):
 def parse_constant(board, expr):
     if expr.type == "int":
         kind = "INT"
+    elif expr.type == "char":
+        kind = "CHAR"
+    elif expr.type == "short":
+        kind = "SHORT"
+    elif expr.type == "long":
+        kind = "LONG"
+    elif expr.type == "float":
+        kind = "FLOAT"
+    elif expr.type == "double":
+        kind = "DOUBLE"
     else:
         kind = "UNKNOWN"
     c = ir_ast.Constant("constant_{}".format(board.uniq_id()), kind, expr.value)
@@ -272,13 +314,37 @@ def is_boolean_op(op):
 
 def conv_op(op, kind):
     if op == "+":
-        return "ADD"
+        if kind == "FLOAT":
+            return "FADD32"
+        elif kind == "DOUBLE":
+            return "FADD64"
+        else:
+            return "ADD"
     elif op == "-":
-        return "SUB"
+        if kind == "FLOAT":
+            return "FSUB32"
+        elif kind == "DOUBLE":
+            return "FSUB64"
+        else:
+            return "SUB"
     elif op == "*":
-        return "MUL32"
+        if kind == "FLOAT":
+            return "FMUL32"
+        elif kind == "DOUBLE":
+            return "FMUL64"
+        elif kind == "LONG":
+            return "MUL64"
+        else:
+            return "MUL32"
     elif op == "/":
-        return "DIV32"
+        if kind == "FLOAT":
+            return "FDIV32"
+        elif kind == "DOUBLE":
+            return "FDIV64"
+        elif kind == "LONG":
+            return "DIV64"
+        else:
+            return "DIV32"
     elif op == "==":
         return "COMPEQ"
     elif op == "<":

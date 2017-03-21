@@ -1,16 +1,23 @@
 
 class Module:
 
-    __slots__ = ('name', 'boards', 'uniq_counter')
+    __slots__ = ('name', 'boards', 'uniq_counter', 'variables')
     def __init__(self, name):
         self.name = name
         self.boards = []
         self.uniq_counter = 0
+        self.variables = []
     
     def uniq_id(self):
         i = self.uniq_counter
         self.uniq_counter += 1
         return "{}_{}".format(self.name, i)
+
+    def search_variable(self, name):
+        for v in self.variables:
+            if name == v.original:
+                return v
+        return None
 
 class Board:
     
@@ -31,7 +38,7 @@ class Board:
         for v in self.variables:
             if name == v.original:
                 return v
-        return None
+        return self.module.search_variable(name)
 
     def new_slot(self):
         slot = Slot(len(self.slots))
