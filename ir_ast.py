@@ -21,13 +21,14 @@ class Module:
 
 class Board:
     
-    __slots__ = ('name', 'kind', 'variables', 'module', 'slots')
+    __slots__ = ('name', 'kind', 'variables', 'module', 'slots', 'breakpoints')
     def __init__(self, module, name, kind):
         self.name = name
         self.kind = kind
         self.module = module
         self.variables = []
         self.slots = []
+        self.breakpoints = []
 
     def uniq_id(self):
         i = self.module.uniq_counter
@@ -180,6 +181,7 @@ class JTSlotItem(SlotItem):
     def is_branch(self):
         return True
 
+# 意味のあるJPとNOP代わりのJPをわける必要があるかも
 class JPSlotItem(SlotItem):
     
     __slots__ = ('next_id')
