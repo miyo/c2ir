@@ -192,3 +192,23 @@ class JPSlotItem(SlotItem):
     
     def is_branch(self):
         return True
+
+class CallSlotItem(SlotItem):
+    
+    __slots__ = ('next_ids', 'name', 'args', 'ret')
+    def __init__(self, next_ids, name, args, ret):
+        super().__init__("SET", next_ids)
+        self.name = name
+        self.args = args
+        self.ret = ret
+    
+    def to_sexp(self):
+        args = "("
+        src = ""
+        for a in self.args:
+            args += a.name + " "
+            src += " " + a.name
+        args += ")"
+        
+        str = "({} {} (CALL {} :no_wait false :name {} :args {}) {})".format(self.op, self.ret.name, src, self.name, args, self.next_ids_str())
+        return str

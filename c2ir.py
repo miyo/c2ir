@@ -85,11 +85,12 @@ def parse_funcdef(module, func):
     board = ir_ast.Board(module, decl.name, conv_type(decl.type.type))
     body = func.body
     
-    for param_decl in decl.type.args.params:
-        original_name = param_decl.name
-        ir_name = original_name + "_" + module.uniq_id()
-        v = ir_ast.Variable(ir_name, conv_type(param_decl.type), method_param=True, method=method_name, original=original_name)
-        board.variables.append(v)
+    if decl.type.args is not None:
+        for param_decl in decl.type.args.params:
+            original_name = param_decl.name
+            ir_name = original_name + "_" + module.uniq_id()
+            v = ir_ast.Variable(ir_name, conv_type(param_decl.type), method_param=True, method=method_name, original=original_name)
+            board.variables.append(v)
 
     slot = board.new_slot()
     slot.append_item(ir_ast.SlotItem("METHOD_EXIT", [slot.id+1]))
@@ -132,6 +133,8 @@ def parse_stmt(board, item):
     elif isinstance(item, c_ast.EmptyStatement):
         slot = board.new_slot() # join slot
         slot.append_item(ir_ast.JPSlotItem(slot.id+1))
+    elif isinstance(item, c_ast.FuncCall):
+        slot = parse_funccall(board, item)
     else:
         print("Not supported stmt yet", item)
     return slot
@@ -184,13 +187,14 @@ def parse_for(board, stmt):
     cond_slot = board.new_slot()
     jt = ir_ast.JTSlotItem(cond)
     cond_slot.append_item(jt)
-    
+
+    body_id = cond_slot.id+1
     body_slot = parse_stmt(board, stmt.stmt)
     update_slot = parse_stmt(board, stmt.next)
     
     slot = board.new_slot()
     slot.append_item(ir_ast.JPSlotItem(slot.id+1))
-    jt.next_ids = [body_slot.id, slot.id]
+    jt.next_ids = [body_id, slot.id]
 
     if update_slot.is_branch() == False:
         for item in update_slot.items:
@@ -228,6 +232,17 @@ def parse_case(board, stmt):
         
 def parse_default(board, stmt):
     pass
+
+def parse_funccall(board, stmt):
+    v = ir_ast.Variable("funccall_{}".format(board.uniq_id()), "VOID", method=board.name)
+    board.variables.append(v)
+    exprs = [parse_expr(board, e) for e in stmt.args.exprs]
+    
+    item = ir_ast.CallSlotItem([len(board.slots)], stmt.name.name, exprs, v)
+    slot = board.new_slot()
+    slot.append_item(item)
+
+    return slot
 
 def get_kind(v0, v1):
     if v0.kind == v1.kind:
@@ -269,7 +284,7 @@ def parse_unaryop(board, expr):
     ir_op = ""
     if op == "p++":
         ir_op = "ADD"
-    elif op == "--":
+    elif op == "p--":
         ir_op = "SUB"
     else:
         print("not supported unary operation yet", op)
@@ -349,6 +364,8 @@ def conv_op(op, kind):
         return "COMPEQ"
     elif op == "<":
         return "LT"
+    elif op == ">":
+        return "GT"
     else:
         print("Not supported the operation yet", op)
         return "UNKNOWN"
