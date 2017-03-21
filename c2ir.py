@@ -147,7 +147,6 @@ def parse_assignement(board, stmt):
     return slot
 
 def parse_break(board, stmt):
-    print(stmt)
     slot = board.new_slot()
     item = ir_ast.JPSlotItem(board.breakpoints[-1].id)
     slot.append_item(item)
@@ -247,7 +246,7 @@ def parse_switch(board, stmt):
             v = ir_ast.Variable("binary_op_{}".format(board.uniq_id()), "BOOLEAN", method=board.name)
             board.variables.append(v)
             slot = board.new_slot()
-            item = ir_ast.BinaryOpSlotItem("BOOLEAN", [len(board.slots)], cond, key, v)
+            item = ir_ast.BinaryOpSlotItem(op, [len(board.slots)], cond, key, v)
             slot.append_item(item)
         else:
             v = ir_ast.Constant("constant_{}".format(board.uniq_id()), "BOOLEAN", "true")
@@ -356,7 +355,11 @@ def parse_unaryop(board, expr):
     return v,slot
 
 def parse_id(board, expr):
-    return board.search_variable(expr.name)
+    id = board.search_variable(expr.name)
+    if id is None:
+        print("no such symbol", expr.name)
+        exit(-1)
+    return id
 
 def parse_constant(board, expr):
     if expr.type == "int":

@@ -6,21 +6,21 @@ module firefly_led_sim;
    reg reset = 1'b0;
    reg [31:0] counter = 32'h0;
    
-   wire[31:0] c_out;
-   wire flag = c_out[0];
+   wire[7:0] led_out;
+   wire led = led_out[0];
    
    firefly_led u(
 	  .clk(clk),
 	  .reset(reset),
-	  .c_in(32'd0),
-	  .c_we(1'b0),
-	  .c_out(c_out),
-	  .pwm_out_a(32'd0),
-	  .pwm_out_b(32'd0),
-	  .pwm_out_busy(),
-	  .pwm_out_req(1'b0),
-	  .pwm_test_busy(),
-	  .pwm_test_req(1'b1)
+	  .led_in(8'd0),
+	  .led_we(1'b0),
+	  .led_out(led_out),
+	  .firefly_led_a(32'd0),
+	  .firefly_led_b(32'd0),
+	  .firefly_led_busy(),
+	  .firefly_led_req(1'b0),
+	  .firefly_led_test_busy(),
+	  .firefly_led_test_req(1'b1)
 	  );
 
    initial begin

@@ -1,21 +1,21 @@
 
-int c;
+char led;
 
-void pwm_out(int a, int b)
+void firefly_led(int a, int b)
 {
   int i;
-  c = 0;
+  led = 0;
   for(i = 0; i < a; i++) ;
-  c = 1;
+  led = 1;
   for(i = 0; i < b; i++) ;
 }
 
-void pwm_test(){
+void firefly_led_test(){
   int i;
   for(i = 1; i < 16; i++){
-    pwm_out(i, 16-i);
+    firefly_led(i, 16-i);
   }
   for(i = 15; i > 0 ; i--){
-    pwm_out(i, 16-i);
+    firefly_led(i, 16-i);
   }
 }
