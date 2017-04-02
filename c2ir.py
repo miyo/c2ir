@@ -131,8 +131,8 @@ def parse_stmt(board, item):
     elif isinstance(item, c_ast.UnaryOp):
         v, slot = parse_unaryop(board, item)
     elif isinstance(item, c_ast.EmptyStatement):
-        slot = board.new_slot() # join slot
-        slot.append_item(ir_ast.JPSlotItem(slot.id+1))
+        slot = board.new_slot()
+        slot.append_item(ir_ast.NopSlotItem(slot.id+1))
     elif isinstance(item, c_ast.FuncCall):
         slot = parse_funccall(board, item)
     else:
@@ -172,7 +172,7 @@ def parse_if(board, stmt):
     jt.next_ids = [then_id, else_id]
     
     slot = board.new_slot() # join slot
-    slot.append_item(ir_ast.JPSlotItem(slot.id+1))
+    slot.append_item(ir_ast.NopSlotItem(slot.id+1))
 
     if then_slot.is_branch() == False:
         then_slot.next_ids = [slot.id]

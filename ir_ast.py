@@ -181,7 +181,6 @@ class JTSlotItem(SlotItem):
     def is_branch(self):
         return True
 
-# 意味のあるJPとNOP代わりのJPをわける必要があるかも
 class JPSlotItem(SlotItem):
     
     __slots__ = ('next_id')
@@ -195,6 +194,16 @@ class JPSlotItem(SlotItem):
     def is_branch(self):
         return True
 
+class NopSlotItem(SlotItem):
+    
+    __slots__ = ('next_id')
+    def __init__(self, next_id):
+        super().__init__("JP", [next_id])
+
+    def to_sexp(self):
+        str = "(JP {})".format(self.next_ids_str())
+        return str
+    
 class CallSlotItem(SlotItem):
     
     __slots__ = ('next_ids', 'name', 'args', 'ret')
