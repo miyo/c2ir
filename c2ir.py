@@ -224,59 +224,46 @@ def parse_decl(board, stmt):
     return slot
     
 def parse_switch(board, stmt):
-    cond = parse_expr(board, stmt.cond)
+    key = parse_expr(board, stmt.cond)
     case_entry = []
-
+    default = None
     # list-up all target case statements
     if isinstance(stmt.stmt, c_ast.Compound):
         for s in stmt.stmt.block_items:
             if isinstance(s, c_ast.Case):
                 case_entry.append(s)
             elif isinstance(s, c_ast.Default):
-                case_entry.append(s)
+                default = s
     elif isinstance(stmt.stmt, c_ast.Case):
         case_entry.append(s)
 
     jump_slots = []
-    for c in case_entry:
-        if isinstance(c, c_ast.Case):
-            # generating comparison between cond and key
-            key = parse_expr(board, c.expr)
-            op = "COMPEQ"
-            v = ir_ast.Variable("binary_op_{}".format(board.uniq_id()), "BOOLEAN", method=board.name)
-            board.variables.append(v)
-            slot = board.new_slot()
-            item = ir_ast.BinaryOpSlotItem(op, [len(board.slots)], cond, key, v)
-            slot.append_item(item)
-        else:
-            v = ir_ast.Constant("constant_{}".format(board.uniq_id()), "BOOLEAN", "true")
-            board.variables.append(v)
-
-        # generating branch
-        jt = ir_ast.JTSlotItem(v)
-        slot = board.new_slot()
-        slot.append_item(jt)
-        jump_slots.append(slot) # to do back-patch
-
-    # break point
+    values = []
+    
     slot = board.new_slot()
-    item = ir_ast.JPSlotItem(slot.id+1)
-    slot.append_item(item)
-    board.breakpoints.append(slot)
-
-    if isinstance(stmt.stmt, c_ast.Case):
-        case_id = len(board.slots)
-        slot = parse_case(board, stmt.stmt)
-        jump_slots[0].items[0].next_ids = [case_id, slot.id+1]
-        return slot
+    select_item = ir_ast.SelectSlotItem(jump_slots, values, key)
+    slot.append_item(select_item)
     
-    i = 0
-    for s in stmt.stmt.block_items:
-        case_id = len(board.slots)
-        slot = parse_case(board, s)
-        jump_slots[i].items[0].next_ids = [case_id, jump_slots[i].id+1]
-        i += 1
+    # break point
+    break_slot = board.new_slot()
+    break_item = ir_ast.JPSlotItem(slot.id+1)
+    break_slot.append_item(break_item)
+    board.breakpoints.append(break_slot)
     
+    for c in case_entry:
+        # generating comparison between cond and key
+        v = parse_expr(board, c.expr)
+        values.append(v)
+        jump_slots.append(len(board.slots))
+        slot = parse_case(board, c)
+        
+    if default is not None:
+        jump_slots.append(len(board.slots))
+        slot = parse_case(board, default)
+    else:
+        jump_losts.append(break_slot.id)
+        
+    break_slot.items[0].next_ids = [len(board.slots)]
     board.breakpoints.pop()
     
     return slot
@@ -454,4 +441,3 @@ if __name__ == '__main__':
 
     print("Generate {}".format(dest))
     generate(dest, module)
-

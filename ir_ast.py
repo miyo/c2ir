@@ -214,3 +214,27 @@ class CallSlotItem(SlotItem):
         
         str = "({} {} (CALL {} :no_wait false :name {} :args {}) {})".format(self.op, self.ret.name, src, self.name, args, self.next_ids_str())
         return str
+
+class SelectSlotItem(SlotItem):
+    
+    __slots__ = ('next_ids', 'values', 'key')
+    def __init__(self, next_ids, values, key):
+        super().__init__("SELECT", next_ids)
+        self.values = values
+        self.key = key
+    
+    def patterns_str(self):
+        str = ":patterns ("
+        sep = ""
+        for v in self.values:
+            str += "{}{}".format(sep, v.name)
+            sep = " "
+        str += ")"
+        return str
+    
+    def to_sexp(self):
+        str = "({} {} :target {} {} {})".format(self.op, self.key.name, self.key.name, self.patterns_str(), self.next_ids_str())
+        return str
+
+    def is_branch(self):
+        return True
